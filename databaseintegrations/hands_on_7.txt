@@ -1,0 +1,137 @@
+This file documents the steps, commands, and outputs executed to complete Hands On 7.
+
+TASK 1: Set Up Alembic and Create a Baseline Migration
+
+
+1. Initialised Alembic in the project folder:
+   Command: python -m alembic init migrations
+   Generated files:
+   - alembic.ini (Alembic configuration)
+   - migrations/env.py (Migration environment script)
+   - migrations/script.py.mako (Migration script template)
+   - migrations/versions/ (Folder to store migration history)
+
+2. Configured database URL in alembic.ini:
+   sqlalchemy.url = postgresql://postgres:varadharaja@localhost:5432/college_db_orm
+
+3. Configured target metadata in migrations/env.py to enable autogenerate:
+   Imported our SQLAlchemy Base metadata from models.py:
+
+//
+   import sys
+   import os
+   sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+   from models import Base
+   target_metadata = Base.metadata
+//
+
+4. Generated the baseline (initial schema) migration:
+   Command: python -m alembic revision --autogenerate -m "initial schema"
+   Generated file: migrations/versions/3bcf3e64ca30_initial_schema.py
+   (Detected 5 added tables: departments, students, courses, enrollments, professors)
+
+5. Applied baseline migration to the database:
+   Command: python -m alembic upgrade head
+   Result: Created all tables and the 'alembic_version' tracking table in college_db_orm.
+
+
+TASK 2: Add and Apply Incremental Migrations
+
+
+6. Added 'is_active' column to the Student model in models.py:
+   is_active = Column(Boolean, default=True, server_default='true')
+
+7. Generated the second migration:
+   Command: python -m alembic revision --autogenerate -m "add is_active to students"
+   Generated file: migrations/versions/32125cce61bc_add_is_active_to_students.py
+   (Detected added column: students.is_active)
+
+8. Applied the second migration:
+   Command: python -m alembic upgrade head
+   Result: Altered students table in college_db_orm to add the is_active column.
+
+9. Created CourseSchedule model in models.py:
+
+//
+   class CourseSchedule(Base):
+       __tablename__ = 'course_schedules'
+       schedule_id = Column(Integer, primary_key=True, autoincrement=True)
+       course_id = Column(Integer, ForeignKey('courses.course_id', ondelete='CASCADE'), nullable=False)
+       day_of_week = Column(String(20), nullable=False)
+       start_time = Column(Time, nullable=False)
+       end_time = Column(Time, nullable=False)
+       course = relationship("Course", back_populates="schedules")
+
+   schedules = relationship("CourseSchedule", back_populates="course", cascade="all, delete-orphan")
+//
+
+10. Generated the third migration:
+    Command: python -m alembic revision --autogenerate -m "add course_schedules table"
+    Generated file: migrations/versions/5d29add94070_add_course_schedules_table.py
+    (Detected added table: course_schedules)
+
+11. Applied the third migration:
+    Command: python -m alembic upgrade head
+    Result: Created course_schedules table in college_db_orm.
+
+12. Verified full migration chain:
+    Command: python -m alembic history --verbose
+    Output:
+    
+    Rev: 5d29add94070 (head)
+    Parent: 32125cce61bc
+    Path: ...\versions\5d29add94070_add_course_schedules_table.py
+        add course_schedules table
+
+    Rev: 32125cce61bc
+    Parent: 3bcf3e64ca30
+    Path: ...\versions\32125cce61bc_add_is_active_to_students.py
+        add is_active to students
+
+    Rev: 3bcf3e64ca30
+    Parent: <base>
+    Path: ...\versions\3bcf3e64ca30_initial_schema.py
+        initial schema
+
+
+TASK 3: Rollback and Recovery
+
+
+13. Checked current revision:
+    Command: python -m alembic current
+    Output: 5d29add94070 (head)
+
+14. Rolled back one step:
+    Command: python -m alembic downgrade -1
+    Output: Running downgrade 5d29add94070 -> 32125cce61bc, add course_schedules table
+    Result: Table 'course_schedules' dropped successfully.
+
+15. Rolled back to base:
+    Command: python -m alembic downgrade base
+    Output:
+    - Running downgrade 32125cce61bc -> 3bcf3e64ca30, add is_active to students
+    - Running downgrade 3bcf3e64ca30 -> , initial schema
+    Result: Undid all migrations; all tables dropped from the database.
+
+16. Re-applied all migrations to latest state:
+    Command: python -m alembic upgrade head
+    Output:
+    - Running upgrade  -> 3bcf3e64ca30, initial schema
+    - Running upgrade 3bcf3e64ca30 -> 32125cce61bc, add is_active to students
+    - Running upgrade 32125cce61bc -> 5d29add94070, add course_schedules table
+    Result: Database schema fully restored to the head revision state.
+
+
+BONUS: Django ORM Migrations Command Reference
+
+In Django, migrations are managed automatically through manage.py:
+
+1. Create migration files for model changes:
+   Command: python manage.py makemigrations
+
+2. Apply pending migrations to database:
+   Command: python manage.py migrate
+
+3. Rollback to a specific historical migration:
+   Command: python manage.py migrate <app_name> <previous_migration_number>
+   Example: python manage.py migrate college_app 0002

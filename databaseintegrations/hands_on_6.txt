@@ -1,0 +1,1 @@
+The hands on 6 exercise is in the folder "orm" - "models.py" and "crud.py"
